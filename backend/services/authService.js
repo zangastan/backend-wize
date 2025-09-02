@@ -13,6 +13,8 @@ const login = async (username, password) => {
             status: 'active'
         }).select("+password");
 
+        
+
         if (!user) {
             throw new Error("User not found");
         }

@@ -3,6 +3,7 @@ const mongoose = require("mongoose");
 const staffSchema = new mongoose.Schema(
   {
     specialties: { type: [String], default: [] }, // e.g. "Cardiology", "Pediatrics"
+    isAvailable: { type: Boolean, default: true },
     workingHours: [
       {
         day: { type: String },

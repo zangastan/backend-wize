@@ -3,7 +3,7 @@ const services = require("../models/servicesModel")
 const getAllSerevices = async () => {
     try {
         const _services = await services.find({})
-            .populate("Department")
+            // .populate("Department")
         if (!_services) {
             throw new Error("No services found")
         }

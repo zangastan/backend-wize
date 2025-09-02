@@ -6,8 +6,10 @@ const jwt = require("jsonwebtoken");
 const bodyParser = require("body-parser");
 const { body, param } = require("express-validator");
 const { sendMail } = require("./utils/sendMail");
-const app = express();
 const http = require("http");
+const morgan = require("morgan");
+// const app = express();
+// const http = require("http");
 const { Server } = require("socket.io");
 
 // Server setup
@@ -23,6 +25,9 @@ const io = new Server(socketServer, {
 
 // socket.io user map
 const userSocketMap = {};
+const User = require("./models/userModel");
+const Department = require("./models/departmentModel");
+
 
 // SERVICES
 const userService = require("./services/userServices");
@@ -33,13 +38,16 @@ const departmentService = require("./services/departmentService");
 const serviceServices = require("./services/serviceService")
 const getAvailableDriver = require("./utils/getAvailableDriver");
 const emergencyService = require("./services/emergencyService")
+const { sendEmergencyNotification } = require("./services/emai.service");
+const { sendNewEnquiryEmail } = require("./utils/sendMail");
+const Enquiry = require("./models/Enquiry");
+const Emergency = require("./models/emergencies");
 // Middleware
-app.use(cors());
-app.use(express.json());
-app.use(bodyParser.json());
-app.use(bodyParser.urlencoded({ extended: true }));
-
-app.get("/", (req, res) => {
+server.use(cors());
+server.use(bodyParser.json());
+server.use(bodyParser.urlencoded({ extended: true }));
+server.use(morgan("dev"));
+server.get("/", (req, res) => {
     res.send("Welcome to Wezi Clinic API");
 });
 
@@ -57,10 +65,52 @@ const auth = (req, res, next) => {
     }
 };
 
+server.get('/dashboard/:role', auth, async (req, res) => {
+    try {
+        // Only admin can access
+        if (!req.user || req.user.role !== 'admin') {
+            return res.status(403).json({ message: 'Forbidden: Admins only' });
+        }
+
+        // Count patients
+        const patientsCount = await User.countDocuments({ role: 'patient' });
+
+        // Count staff
+        const staffCount = await User.countDocuments({ role: 'staff' });
+
+        // Count HODs (department heads)
+        const hodsCount = await User.countDocuments({ role: 'department_head' });
+
+        // Count departments
+        const departmentsCount = await Department.countDocuments();
+
+        // Optional: send some user info for the dashboard hero
+        const userInfo = await User.findById(req.user.id).select('full_name email role');
+
+        res.json({
+            userData: {
+                id: userInfo._id,
+                full_name: userInfo.full_name,
+                email: userInfo.email,
+                role: userInfo.role,
+            },
+            users: {
+                patients: patientsCount,
+                staff: staffCount,
+                hods: hodsCount,
+            },
+            departments: departmentsCount,
+        });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: 'Server error', error: error.message });
+    }
+});
+
 // --- USERS ROUTES ADMINS ONLY ROUTES--- //
 
 // Get all users
-app.get("/api/allusers", auth, async (req, res) => {
+server.get("/api/allusers", auth, async (req, res) => {
     try {
         const users = await userService.getAllUsers();
         return res.status(200).json(users);
@@ -69,7 +119,7 @@ app.get("/api/allusers", auth, async (req, res) => {
     }
 });
 
-app.get("/api/role/:role", auth, async (req, res) => {
+server.get("/api/role/:role", async (req, res) => {
     try {
         const users = await userService.tempRole(req.params.role);
         return res.status(200).json(users);
@@ -79,7 +129,7 @@ app.get("/api/role/:role", auth, async (req, res) => {
     }
 });
 // Get single user by ID
-app.get(
+server.get(
     "/api/getUser/:id",
     [param("id").notEmpty().withMessage("Invalid user ID")],
     validate,
@@ -95,13 +145,10 @@ app.get(
 );
 
 // Update a single user
-app.put(
-    "/api/updateUser/:id",
+server.put(
+    "/api/updateuser/:id",
     [
         param("id").notEmpty().withMessage("Invalid user ID"),
-        body("username").optional().notEmpty().withMessage("Username cannot be empty"),
-        body("email").optional().isEmail().withMessage("Valid email required"),
-        body("role").optional().notEmpty().withMessage("Role cannot be empty"),
     ],
     validate,
     auth,
@@ -115,8 +162,16 @@ app.put(
     }
 );
 
+server.put("/api/changeStatus/:id", async (req, res) => {
+    try {
+        const updatedUser = await userService.changeUserStatus(req.params.id);
+        return res.status(200).json(updatedUser);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+})
 // Create a new user
-app.post(
+server.post(
     "/api/create-user",
     [
         body("username").notEmpty().withMessage("Username is required"),
@@ -138,7 +193,7 @@ app.post(
 );
 
 // Soft delete a user
-app.put(
+server.put(
     "/api/softDeleteUser/:id",
     [param("id").notEmpty().withMessage("Invalid user ID")],
     validate,
@@ -156,7 +211,7 @@ app.put(
 // --- AUTH ROUTES --- //
 
 // Login
-app.post(
+server.post(
     "/api/login",
     [
         body("username").notEmpty().withMessage("Username is required"),
@@ -177,7 +232,7 @@ app.post(
 
 // -- PATIENT ONLY ROUTES -- //
 // Register
-app.post(
+server.post(
     "/api/register",
     [
         body("username").notEmpty().withMessage("Username is required"),
@@ -199,11 +254,11 @@ app.post(
 // --- APPOINTMENTS ROUTES --- //
 
 //create a new appointment
-app.post("/api/create-appointment", auth, async (req, res) => {
+server.post("/api/create-appointment", async (req, res) => {
     try {
         const newAppointment = await AppointmentServices.createAppointment(req.body);
         if (newAppointment.error) {
-            return res.status(400).json({ error: newAppointment.error });
+            return res.status(400).json({ error: "No doctors available for this service" });
         }
         return res.status(201).json(newAppointment);
     } catch (error) {
@@ -212,7 +267,7 @@ app.post("/api/create-appointment", auth, async (req, res) => {
 })
 
 //approve appointment
-app.put("/api/approve-appointment/:id", auth, async (req, res) => {
+server.put("/api/approve-appointment/:id", async (req, res) => {
     try {
         const appointment = await AppointmentServices.approveAppointment(req.params.id);
         if (appointment.error) {
@@ -224,19 +279,32 @@ app.put("/api/approve-appointment/:id", auth, async (req, res) => {
     }
 })
 
-app.get("/api/get-appointment/:id", auth, async (req, res) => {
+// postpone the apppointement
+server.put("/api/postpone-appointment/:id", async (req, res) => {
     try {
-        const appointement = await departmentService.appointement(req.params.id)
-        if (appointement.error) {
-            return { error: appointement.error }
+        const appointment = await AppointmentServices.moveDate(req.params.id, req.body);
+        if (appointment.error) {
+            return res.status(400).json({ error: appointment.error });
         }
-        return res.status(200).json(appointement)
+        return res.status(200).json(appointment);
     } catch (error) {
-        return { error: error.message }
+        return res.status(500).json({ error: error.message })
     }
 })
+server.get("/api/get-appointment/:id", async (req, res) => {
+    try {
+        const appointement = await AppointmentServices.getAllAppointments(req.params.id);
 
-app.get("/api/all-appointments/:id", auth, async (req, res) => {
+        if (appointement.error) {
+            return res.status(404).json({ error: appointement.error });
+        }
+
+        return res.status(200).json(appointement);
+    } catch (error) {
+        return res.status(500).json({ error: error.message });
+    }
+});
+server.get("/api/all-appointments/:id", auth, async (req, res) => {
     try {
         // const {role} = req.query;
         console.log(req.query.role)
@@ -252,7 +320,7 @@ app.get("/api/all-appointments/:id", auth, async (req, res) => {
 // -- DEPARTMENTS -- //
 
 // get all departments
-app.get("/api/all-departments", auth, async (req, res) => {
+server.get("/api/all-departments", auth, async (req, res) => {
     try {
         const departments = await departmentService.getAllDepartments();
         return res.status(200).json(departments);
@@ -261,7 +329,7 @@ app.get("/api/all-departments", auth, async (req, res) => {
     }
 })
 //create a new department
-app.post("/api/create-department", auth, async (req, res) => {
+server.post("/api/create-department", auth, async (req, res) => {
     try {
         const newDepartment = await departmentService.createDepartment(req.body);
         return res.status(200).json(newDepartment)
@@ -272,7 +340,7 @@ app.post("/api/create-department", auth, async (req, res) => {
 })
 
 //update the departments 
-app.put("/api/update-department/:id", auth, async (req, res) => {
+server.put("/api/update-department/:id", auth, async (req, res) => {
     try {
         const updatedDepartment = await departmentService.updateDepartment(req.params.id, req.body);
         if (departmentService.error) {
@@ -286,20 +354,20 @@ app.put("/api/update-department/:id", auth, async (req, res) => {
 })
 
 // -- SERVICES -- //
-app.get("/api/all-services", auth, async (req, res) => {
+server.get("/api/all-services", async (req, res) => {
     try {
         const AllServices = await serviceServices.getAllSerevices()
         if (AllServices.error) {
             return { error: AllServices.error }
         }
-        return res.json(200).json(AllServices)
+        return res.status(200).json(AllServices)
     } catch (error) {
         return { error: error.message }
     }
 })
 
 // create a new service
-app.post("/api/create-service", auth, async (req, res) => {
+server.post("/api/create-service", auth, async (req, res) => {
     try {
         const newService = await serviceServices.createService(req.body)
         if (newService.error) {
@@ -314,7 +382,7 @@ app.post("/api/create-service", auth, async (req, res) => {
 
 // --- EMERGENCIES --- //
 // Get active emergency for patients
-server.get("/api/emergency/active/patient/:userType/:id", async (req, res) => {
+server.get("/api/emergency/active/:userType/:id", async (req, res) => {
     try {
         const { userType, id } = req.params;
 
@@ -331,7 +399,7 @@ server.get("/api/emergency/active/patient/:userType/:id", async (req, res) => {
 });
 
 // Get active emergency for ambulance drivers
-server.get("/api/emergency/active/driver/:id", async (req, res) => {
+server.get("/api/emergency/active/:id", async (req, res) => {
     try {
         const { id } = req.params;
 
@@ -348,7 +416,7 @@ server.get("/api/emergency/active/driver/:id", async (req, res) => {
 });
 
 // Get all emergencies for a driver
-server.get("/api/emergency/driver/:driverId", async (req, res) => {
+server.get("/driver/:driverId", async (req, res) => {
     try {
         const { driverId } = req.params;
 
@@ -561,12 +629,18 @@ io.on("connection", (socket) => {
 
 // Connect to MongoDB
 
-mongoose.connect(process.env.MONGO_URI)
+const MONGO = process.env.MONGO_URI;
 mongoose
-    .connect(process.env.MONGO_URI)
-    .then(() => console.log("✅ MongoDB Connected"))
-    .catch((err) => console.error("❌ MongoDB Error:", err));
-
-// Start server
-const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => console.log(`🔥 Server running on port ${PORT}`));
+    .connect(MONGO)
+    .then(() => {
+        console.log("✅ MongoDB connected");
+        // Start Server
+        const PORT = process.env.PORT;
+        socketServer.listen(PORT, "0.0.0.0", () => {
+            console.log(`🚀 Backend running at http://localhost:${PORT}`);
+        });
+    })
+    .catch((err) => {
+        console.error("❌ MongoDB connection error:", err);
+        process.exit(1);
+    })

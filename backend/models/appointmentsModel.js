@@ -4,13 +4,13 @@ const appointmentSchema = new mongoose.Schema(
   {
     patientId: { type: mongoose.Schema.Types.ObjectId, ref: "Users" },
     serviceId: { type: mongoose.Schema.Types.ObjectId, ref: "Services"},
-    staffId: { type: mongoose.Schema.Types.ObjectId, ref: "Staff" }, // optional, e.g. assigned doctor/nurse
+    staffId: { type: mongoose.Schema.Types.ObjectId, ref: "Users" }, // optional, e.g. assigned doctor/nurse
     departmentId: { type: mongoose.Schema.Types.ObjectId, ref: "Department" },
     time: { type: Date, required: true },
     status: {
       type: String, //Enum ['pending', 'approved' , 'cancelled' , 'past']
-      enum : ['pending', 'approved', 'cancelled', 'no-show', 'completed'],
-      default: "pending",
+      enum : ['scheduled', 'approved', 'cancelled', 'no-show', 'completed'],
+      default: "scheduled",
     },
     notes: { type: String, default: "" },
   },

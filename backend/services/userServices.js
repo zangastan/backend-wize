@@ -9,7 +9,7 @@ const { sendMail } = require("../utils/sendMail");
 const createUser = async (userData) => {
     const isExiststing = await User.findOne({ username: userData.username })
     if (isExiststing) {
-        return { error: "Username already exists" }
+        throw new Error("Username already exists")
     }
 
     try {
@@ -66,7 +66,6 @@ const createUser = async (userData) => {
         })
         await newUser.save();
 
-
         return newUser;
     } catch (error) {
         console.error("Error creating user:", error.message);
@@ -78,10 +77,11 @@ const createUser = async (userData) => {
 const getAllUsers = async (filter = {}) => {
     filter.status = 'active'; // only active users
     try {
-        const users = await User.find(filter)
+        const users = await User.find({})
             .populate('linkedPatientId')
             .populate('linkedStaffId')
-            .populate('departmentId');
+            .populate('departmentId')
+            .sort({ updatedAt: -1 });
 
         if (!users) {
             throw new Error("No users found")
@@ -94,9 +94,10 @@ const getAllUsers = async (filter = {}) => {
 
 // return all the users in the system
 const tempRole = async (role) => {
-    filter.status = 'active'; // only active users
+    // filter.status = 'active'; // only active users
+    console.log("role: ", role)
     try {
-        const users = await User.find({role})
+        const users = await User.find({ role: role })
             .populate('linkedPatientId')
             .populate('linkedStaffId')
             .populate('departmentId');
@@ -128,7 +129,8 @@ const getUserById = async (userId) => {
 const updateUser = async (userId, updateData) => {
     try {
         // update the user details 
-        const updatedUser = await User.findOneAndUpdate({ username: userId }
+        const updatedUser = await User.findByIdAndUpdate(
+            userId
             , updateData,
             { new: true }
         ).select('-password');
@@ -161,17 +163,15 @@ const updateUser = async (userId, updateData) => {
 // delete a user by user id
 const changeUserStatus = async (userId) => {
     try {
-        const user = await find({ username: userId })
-        if (user.status == "inactive") {
-            await User.findOneAndUpdate(
-                { username: userId },
-                { status: 'inactive' })
+        console.log("user id: ", userId)
+        const user = await User.findById(userId)
+        if (user.status === "inactive") {
+            user.status = 'active'
         } else {
-            await User.findOneAndUpdate(
-                { username: userId },
-                { status: 'active' })
+            user.status = 'inactive'
         }
-
+        await user.save()
+        return user
     } catch (error) {
         return { error: error.message }
     }
