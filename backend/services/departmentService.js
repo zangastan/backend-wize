@@ -13,7 +13,7 @@ const createDepartment = async (data) => {
 
 const getAllDepartments = async () => {
     try {
-        const departments = await department.find()
+        const departments = await department.find({})
         if (!departments) {
             throw new Error("No departments found")
         }

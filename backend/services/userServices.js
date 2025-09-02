@@ -3,7 +3,7 @@ const Patient = require("../models/patientsModel");
 const Staff = require("../models/staffModel");
 const bcrypt = require('bcryptjs');
 const generatePassword = require("../utils/generatepwd");
-const {sendMail} = require("../utils/sendMail");
+const { sendMail } = require("../utils/sendMail");
 // new user creation
 
 const createUser = async (userData) => {
@@ -49,7 +49,7 @@ const createUser = async (userData) => {
       margin: 0 auto; 
       padding: 20px; 
       border: 1px solid #e0e0e0; 
-      
+
       border-radius: 8px; 
       background-color: #f9f9f9;
     ">
@@ -79,6 +79,24 @@ const getAllUsers = async (filter = {}) => {
     filter.status = 'active'; // only active users
     try {
         const users = await User.find(filter)
+            .populate('linkedPatientId')
+            .populate('linkedStaffId')
+            .populate('departmentId');
+
+        if (!users) {
+            throw new Error("No users found")
+        }
+        return users;
+    } catch (error) {
+        return { error: error.message }
+    }
+}
+
+// return all the users in the system
+const tempRole = async (role) => {
+    filter.status = 'active'; // only active users
+    try {
+        const users = await User.find({role})
             .populate('linkedPatientId')
             .populate('linkedStaffId')
             .populate('departmentId');
@@ -141,11 +159,19 @@ const updateUser = async (userId, updateData) => {
 }
 
 // delete a user by user id
-const deleteUser = async (userId) => {
+const changeUserStatus = async (userId) => {
     try {
-        await User.findOneAndUpdate(
-            { username: userId },
-            { status: 'inactive' })
+        const user = await find({ username: userId })
+        if (user.status == "inactive") {
+            await User.findOneAndUpdate(
+                { username: userId },
+                { status: 'inactive' })
+        } else {
+            await User.findOneAndUpdate(
+                { username: userId },
+                { status: 'active' })
+        }
+
     } catch (error) {
         return { error: error.message }
     }
@@ -156,6 +182,7 @@ module.exports = {
     getAllUsers,
     getUserById,
     updateUser,
-    deleteUser
+    changeUserStatus,
+    tempRole,
 }
 
