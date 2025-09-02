@@ -18,8 +18,8 @@ const socketServer = http.createServer(server);
 
 const io = new Server(socketServer, {
     cors: {
-        origin: "*",
-        methods: ["GET", "POST"],
+        origin: ["*","https://application-wezi.vercel.app/"],
+        methods: ["GET", "POST","PUT","DELETE"],
     },
 });
 
