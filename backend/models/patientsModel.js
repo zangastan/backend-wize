@@ -9,6 +9,7 @@ const patientSchema = new mongoose.Schema(
       region: { type: String, default: "" },
       postalCode: { type: String, default: "" },
     },
+    district: {type : String , default : ''},
     nationId: { type: String, maxlength: 6 },
     conditions: { type: [String], default: [] },
     emergencyContact: {

@@ -4,6 +4,7 @@ const mongoose = require("mongoose");
 const userSchema = new mongoose.Schema(
   {
     name: { type: String, required: true, lowercase: true },
+    username: { type: String, required: true, unique: true },
     email: { type: String , default : ''},
     password: { type: String, required: true, select: false },
     phone: { type: String },
@@ -12,8 +13,10 @@ const userSchema = new mongoose.Schema(
     departmentId: { type: mongoose.Schema.Types.ObjectId, ref: "Department" },
     role: {
       type: String,
+      enum: ['admin', 'doctor', 'patient', 'nurse', 'ambulance_driver', 'hod'],
       default: "patient",
     },
+    status: { type: String, enum: ['active', 'inactive'], default: 'active' },
     lastLogin: { type: Date },
     preferredLanguage: { type: String , default : 'en'},
     gender: { type: String },
