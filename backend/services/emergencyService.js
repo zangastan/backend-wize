@@ -106,8 +106,14 @@ const getActiveEmergenciesWithLocations = async () => {
         } : null };
     }));
 };
-
+const getActiveDriverEmergency = async (driverId) => {
+    return await Emergency.findOne({
+        assignedTo: driverId,
+        status: { $in: ["assigned", "enroute"] }
+    }).populate("sender assignedTo");
+};
 module.exports = {
+  getActiveDriverEmergency,
     calculateDistance,
     calculateDriverStatus,
     findBestDriverForEmergency,
