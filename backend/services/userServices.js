@@ -114,10 +114,12 @@ const tempRole = async (role) => {
 // get a user by  id
 const getUserById = async (userId) => {
     try {
-        const user = await User.find({ username: userId })
+        const user = await User.findById(userId).populate("departmentId linkedStaffId linkedPatientId")
         if (!user) {
             throw new Error("User not found")
         }
+
+        console.log(user)
 
         return user;
     } catch (error) {

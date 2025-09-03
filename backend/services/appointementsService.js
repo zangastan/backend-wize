@@ -1,58 +1,66 @@
-const Appointment = require("../models/appointmentsModel")
-const Users = require("../models/userModel")
-const service = require("../models/servicesModel")
-const { sendMail } = require("../utils/sendMail")
+const Appointment = require("../models/appointmentsModel");
+const Users = require("../models/userModel");
+const service = require("../models/servicesModel");
+const { sendMail } = require("../utils/sendMail");
 
 const createAppointment = async (data) => {
-    try {
-        const serviceId = data.serviceId;
-        const services = await service.findById(serviceId);
-        if (!services) {
-            throw new Error("Service not found");
-        }
-
-        const doctors = await Users.find({ role: 'doctor', departmentId: services.departmentId })
-            .populate("linkedStaffId")
-        console.log("Available Doctors:", doctors);
-
-        if (doctors.length === 0) {
-            // return {error : "No doctors available in this department"}
-            throw new Error("No doctors available in this department");
-        }
-        const randomDoctor = doctors[Math.floor(Math.random() * doctors.length)];
-        data.staffId = randomDoctor._id
-
-        console.log("Assigned Doctor ID:", randomDoctor._id);
-        console.log("Assigned Doctor Name:", randomDoctor.name);
-        console.log("Assigned Doctor Email:", randomDoctor.email);
-        console.log("Assigned Doctor Specialty:", randomDoctor.linkedStaffId?.specialties);
-        
-        const newAppointment = new Appointment(data)
-        await newAppointment.save()
-        return newAppointment 
-    } catch (error) {
-        return { error: error.message }
+  try {
+    const serviceId = data.serviceId;
+    const services = await service.findById(serviceId);
+    if (!services) {
+      throw new Error("Service not found");
     }
-}
+
+    const doctors = await Users.find({
+      role: "doctor",
+      departmentId: services.departmentId,
+    }).populate("linkedStaffId");
+    console.log("Available Doctors:", doctors);
+
+    if (doctors.length === 0) {
+      // return {error : "No doctors available in this department"}
+      throw new Error("No doctors available in this department");
+    }
+    const randomDoctor = doctors[Math.floor(Math.random() * doctors.length)];
+    data.staffId = randomDoctor._id;
+
+    console.log("Assigned Doctor ID:", randomDoctor._id);
+    console.log("Assigned Doctor Name:", randomDoctor.name);
+    console.log("Assigned Doctor Email:", randomDoctor.email);
+    console.log(
+      "Assigned Doctor Specialty:",
+      randomDoctor.linkedStaffId?.specialties
+    );
+
+    const newAppointment = new Appointment({
+      ...data,
+      departmentId: services.departmentId,
+    });
+    await newAppointment.save();
+    return newAppointment;
+  } catch (error) {
+    return { error: error.message };
+  }
+};
 
 const approveAppointment = async (id) => {
-    try {
-        console.log("approveAppointment id:", id);
-        const appointment = await Appointment.findByIdAndUpdate(
-            id,
-            { status: "approved" },
-            { new: true }
-        )
-            .populate("patientId")   // ✅ adjust to your schema field
-            .populate("serviceId")
-            .populate("staffId");
-        console.log("Updated appointment:", appointment);
-        if (!appointment) {
-            throw new Error("Appointment not found");
-        }
+  try {
+    console.log("approveAppointment id:", id);
+    const appointment = await Appointment.findByIdAndUpdate(
+      id,
+      { status: "approved" },
+      { new: true }
+    )
+      .populate("patientId") // ✅ adjust to your schema field
+      .populate("serviceId")
+      .populate("staffId");
+    console.log("Updated appointment:", appointment);
+    if (!appointment) {
+      throw new Error("Appointment not found");
+    }
 
-        // ✅ Build email HTML
-        const emailHtml = `
+    // ✅ Build email HTML
+    const emailHtml = `
 <div style="font-family: 'Segoe UI', sans-serif; padding: 20px; background: #f0fdf4;">
   <div style="max-width: 600px; margin: auto; background: #ffffff; padding: 24px; border-radius: 8px; border: 1px solid #d1fae5;">
     
@@ -61,7 +69,9 @@ const approveAppointment = async (id) => {
     </h1>
     
     <p style="font-size: 1rem; color: #065f46; margin-bottom: 24px;">
-      Hello <strong>${appointment.patientId?.username || "Patient"}</strong>, your appointment has been successfully approved. Please find the details below:
+      Hello <strong>${
+        appointment.patientId?.username || "Patient"
+      }</strong>, your appointment has been successfully approved. Please find the details below:
     </p>
 
     <div style="background: #d1fae5; padding: 16px; border-radius: 6px; margin-bottom: 16px;">
@@ -73,7 +83,10 @@ const approveAppointment = async (id) => {
       <p style="margin: 0; font-weight: bold; color: #065f46;">Date & Time:</p>
       <p style="margin: 4px 0 0;">
         ${new Date(appointment.time).toLocaleDateString()} at 
-        ${new Date(appointment.time).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+        ${new Date(appointment.time).toLocaleTimeString([], {
+          hour: "2-digit",
+          minute: "2-digit",
+        })}
       </p>
     </div>
 
@@ -92,32 +105,35 @@ const approveAppointment = async (id) => {
   </div>
 </div>
         `;
-        // ✅ Send mail
-        await sendMail({
-            to: appointment.patientId?.email,
-            subject: `Appointment Update - ${appointment._id}`,
-            html: emailHtml,
-        });
+    // ✅ Send mail
+    await sendMail({
+      to: appointment.patientId?.email,
+      subject: `Appointment Update - ${appointment._id}`,
+      html: emailHtml,
+    });
 
-        return appointment;
-    } catch (error) {
-        console.error("approveAppointment error:", error);
-        return { error: error.message };
-    }
+    return appointment;
+  } catch (error) {
+    console.error("approveAppointment error:", error);
+    return { error: error.message };
+  }
 };
 
 const moveDate = async (id, data) => {
-    try {
-        const postpone = await Appointment.findByIdAndUpdate(id,
-            { time: data.time },
-            { new: true }).select()
-            .populate("patientId")   // ✅ adjust to your schema field
-            .populate("serviceId")
-            .populate("staffId");
-        if (!postpone) {
-            throw new Error("Appointment not found");
-        }
-        const emailHtml = `
+  try {
+    const postpone = await Appointment.findByIdAndUpdate(
+      id,
+      { time: data.time },
+      { new: true }
+    )
+      .select()
+      .populate("patientId") // ✅ adjust to your schema field
+      .populate("serviceId")
+      .populate("staffId");
+    if (!postpone) {
+      throw new Error("Appointment not found");
+    }
+    const emailHtml = `
 <div style="font-family: 'Segoe UI', sans-serif; padding: 20px; background: #f0fdf4;">
   <div style="max-width: 600px; margin: auto; background: #ffffff; padding: 24px; border-radius: 8px; border: 1px solid #d1fae5;">
     
@@ -126,7 +142,9 @@ const moveDate = async (id, data) => {
     </h1>
     
     <p style="font-size: 1rem; color: #065f46; margin-bottom: 24px;">
-      Hello <strong>${postpone.patientId?.username || "Patient"}</strong>, We would like to inform you that your appointment has been rescheduled. Please find the updated details below:
+      Hello <strong>${
+        postpone.patientId?.username || "Patient"
+      }</strong>, We would like to inform you that your appointment has been rescheduled. Please find the updated details below:
     </p>
 
     <div style="background: #d1fae5; padding: 16px; border-radius: 6px; margin-bottom: 16px;">
@@ -138,7 +156,10 @@ const moveDate = async (id, data) => {
       <p style="margin: 0; font-weight: bold; color: #065f46;">Date & Time:</p>
       <p style="margin: 4px 0 0;">
         ${new Date(postpone.time).toLocaleDateString()} at 
-        ${new Date(postpone.time).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+        ${new Date(postpone.time).toLocaleTimeString([], {
+          hour: "2-digit",
+          minute: "2-digit",
+        })}
       </p>
     </div>
 
@@ -158,66 +179,65 @@ const moveDate = async (id, data) => {
 </div>
         `;
 
-        await sendMail({
-            to: postpone.patientId?.email,
-            subject: `Appointment Update - ${postpone._id}`,
-            html: emailHtml,
-        });
-        return postpone;
-    } catch (error) {
-        console.error("approveAppointment error:", error);
-        return { error: error.message };
-    }
-}
+    await sendMail({
+      to: postpone.patientId?.email,
+      subject: `Appointment Update - ${postpone._id}`,
+      html: emailHtml,
+    });
+    return postpone;
+  } catch (error) {
+    console.error("approveAppointment error:", error);
+    return { error: error.message };
+  }
+};
 // ✅ Service function
 const getAllAppointments = async (id, role) => {
-    try {
-        let appointments;
-        if (role === 'doctor') {
-            appointments = await Appointment.find({ staffId: id })
-                .populate("patientId")
-                .populate("serviceId")
-                .populate("staffId")
-                .populate("departmentId");
-        } else {
-            appointments = await Appointment.find({ patientId: id })
-                .populate("patientId")
-                .populate("serviceId")
-                .populate("staffId")
-                .populate("departmentId");
-        }
-        if (!appointments || appointments.length === 0) {
-            throw new Error("No appointments found");
-        }
-
-        return appointments;
-
-    } catch (error) {
-        return { error: error.message };
+  try {
+    let appointments;
+    if (role === "doctor") {
+      appointments = await Appointment.find({ staffId: id })
+        .populate("patientId")
+        .populate("serviceId")
+        .populate("staffId")
+        .populate("departmentId");
+    } else {
+      appointments = await Appointment.find({ patientId: id })
+        .populate("patientId")
+        .populate("serviceId")
+        .populate("staffId")
+        .populate("departmentId");
     }
+    if (!appointments || appointments.length === 0) {
+      throw new Error("No appointments found");
+    }
+
+    return appointments;
+  } catch (error) {
+    return { error: error.message };
+  }
 };
 
 const appointement = async (id) => {
-    try {
-        const appointment = await Appointment.find({ _id: id })
-            .populate("Users")
-            .populate("Services")
-            .populate("Department")
-            .populate("Staff")
+  try {
+    const appointment = await Appointment.find({ _id: id })
+      .populate("Users")
+      .populate("Services")
+      .populate("Department")
+      .populate("Staff");
 
-        if (appointment.error) {
-            throw new Error("error fetching appointemt")
-        }
-
-        return appointment
-    } catch (error) {
-        console.log(error.message)
+    if (appointment.error) {
+      throw new Error("error fetching appointemt");
     }
-}
+
+    return appointment;
+  } catch (error) {
+    console.log(error.message);
+  }
+};
 module.exports = {
-    createAppointment,
-    getAllAppointments,
-    approveAppointment,
-    appointement,
-    moveDate
-}
+  createAppointment,
+  getAllAppointments,
+  approveAppointment,
+  appointement,
+  moveDate,
+};

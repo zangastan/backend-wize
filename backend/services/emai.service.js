@@ -123,3 +123,5 @@ exports.sendEmergencyNotification = async (to, emergencyDetails) => {
     console.log("Error sending emergency email:", error);
   }
 };
+
+exports.sendAppointmentBookedEmail = async () => {};

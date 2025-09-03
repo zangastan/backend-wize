@@ -19,6 +19,22 @@ const patientEmergencies = async (id, userType) => {
   }
 };
 
+// Get past patient emergencies
+const pastPatientEmergencies = async (id, userType) => {
+  try {
+    const filter = userType === "guest" ? { userDeviceId: id } : { sender: id };
+
+    const pastPatientEmergencies = await emergency
+      .findOne(filter)
+      .populate("assignedTo sender");
+
+    return pastPatientEmergencies;
+  } catch (error) {
+    console.error("Error in patientEmergencies:", error);
+    throw new Error("Failed to fetch past patient emergencies");
+  }
+};
+
 // Fetch active emergency for ambulance drivers
 const ActiveAmbulanceEmergency = async (id) => {
   try {
@@ -52,4 +68,5 @@ module.exports = {
   ActiveAmbulanceEmergency,
   patientEmergencies,
   driverEmergencies,
+  pastPatientEmergencies,
 };
