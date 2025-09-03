@@ -114,11 +114,10 @@ const tempRole = async (role) => {
 // get a user by  id
 const getUserById = async (userId) => {
     try {
-        const user = await User.find({ username: userId })
+        const user = await User.findById(userId)
         if (!user) {
             throw new Error("User not found")
         }
-
         return user;
     } catch (error) {
         return { error: error.message }

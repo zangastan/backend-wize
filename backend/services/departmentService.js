@@ -25,19 +25,24 @@ const getAllDepartments = async () => {
 
 const updateDepartment = async (departmentId, data) => {
     try {
-        const department = await department.findByIdAndUpdate(
-            { _id: departmentId },
-            data, { new: true });
+        console.log("Updating department:", departmentId);
 
-        if (!department) {
-            throw new Error("department not found");
+        const updatedDepartment = await department.findByIdAndUpdate(
+            departmentId,
+            { $set: data }, // ensures partial updates
+            { new: true, runValidators: true } // return updated doc + validate schema
+        );
+
+        if (!updatedDepartment) {
+            throw new Error("Department not found");
         }
 
-        return department;
+        return updatedDepartment;
     } catch (error) {
-        return { error: error.message }
+        console.error("Update error:", error);
+        return { error: error.message };
     }
-}
+};
 
 module.exports = {
     createDepartment,
