@@ -50,6 +50,7 @@ const {
     getActiveEmergenciesWithLocations,
     CLINIC_CENTER
 } = require("./services/emergencyService"); // You'll need to create this service
+const emergencies = require("./models/emergencies");
 
 // Middleware
 server.use(cors());
@@ -338,7 +339,7 @@ server.get("/api/all-departments", async (req, res) => {
     }
 })
 //create a new department
-server.post("/api/create-department",auth, async (req, res) => {
+server.post("/api/create-department", auth, async (req, res) => {
     try {
         const newDepartment = await departmentService.createDepartment(req.body);
         return res.status(200).json(newDepartment)
@@ -385,7 +386,7 @@ server.get("/api/all-services", async (req, res) => {
 });
 
 // Get single service by ID
-server.get("/api/service/:id",auth , async (req, res) => {
+server.get("/api/service/:id", auth, async (req, res) => {
     try {
         const service = await serviceServices.getOneService(req.params.id);
         if (service.error) {
@@ -435,7 +436,7 @@ server.put("/api/update-service/:id", auth, [
 ], validate, async (req, res) => {
     try {
         const updatedService = await serviceServices.updateServices(req.params.id, req.body);
-        
+
         if (updatedService.error) {
             return res.status(400).json({ error: updatedService.error });
         }
@@ -457,7 +458,7 @@ server.delete("/api/delete-service/:id", auth, [
 ], validate, async (req, res) => {
     try {
         const result = await serviceServices.deleteService(req.params.id);
-        
+
         if (result.error) {
             return res.status(404).json({ error: result.error });
         }
@@ -476,7 +477,7 @@ server.delete("/api/delete-service/:id", auth, [
 server.get("/api/services/department/:departmentId", async (req, res) => {
     try {
         const services = await serviceServices.getServicesByDepartment(req.params.departmentId);
-        
+
         if (services.error) {
             return res.status(400).json({ error: services.error });
         }
@@ -496,7 +497,7 @@ server.get("/api/services/department/:departmentId", async (req, res) => {
 server.get("/api/services/emergency", async (req, res) => {
     try {
         const emergencyServices = await serviceServices.getEmergencyServices();
-        
+
         if (emergencyServices.error) {
             return res.status(400).json({ error: emergencyServices.error });
         }
@@ -563,6 +564,22 @@ server.get("/driver/:driverId", async (req, res) => {
         console.error("❌ Error fetching driver emergencies:", err);
         res.status(500).json({ status: "error", message: err.message });
     }
+});
+
+server.get("/api/user-emergencies/:id", auth, async (req, res) => {
+  try {
+    const id = req.params.id;
+    console.log(id);
+    const result = await emergencyService.getUserPast(id);
+
+    if (result.error) {
+      return res.json(result.error); // returning raw error object without status
+    }
+
+    return res.status(200).json(result);
+  } catch (error) {
+    return res.status(500).json({ message: error.message }); // safer to return { message }
+  }
 });
 
 io.on("connection", (socket) => {
